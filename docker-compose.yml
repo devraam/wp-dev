@@ -14,7 +14,7 @@ services:
       interval: 5s
       retries: 30
 
-  # Prepara carpetas del host (temas/plugins)
+  # Prepare host folders (themes/plugins)
   bootstrap:
     image: wordpress:php8.2-apache
     restart: "no"
@@ -45,15 +45,15 @@ services:
       WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD:-changeme_pw}
       WORDPRESS_DB_NAME: ${MYSQL_DATABASE:-wordpress}
     volumes:
-      - wp_data:/var/www/html              # core y resto
+      - wp_data:/var/www/html              # core + everything else
       - ./wp/wp-content/themes:/var/www/html/wp-content/themes
       - ./wp/wp-content/plugins:/var/www/html/wp-content/plugins
       - uploads_data:/var/www/html/wp-content/uploads
 
-  # Instala WP y crea plugin base
+  # Install WP and scaffold base plugin
   setup:
     image: wordpress:cli
-    user: "0:0"   # root para poder chown a 33:33
+    user: "0:0"   # root so we can chown to 33:33
     depends_on:
       db:
         condition: service_healthy
@@ -82,7 +82,7 @@ services:
       - wp_cli_cache:/var/www/.wp-cli
     entrypoint: ["bash", "/setup.sh"]
 
-  # Prepara el volumen de caché de WP-CLI con permisos 33:33
+  # Prepare WP-CLI cache volume with 33:33 permissions
   wpcli-cache-init:
     image: alpine:3
     user: "0:0"
@@ -99,7 +99,7 @@ services:
   wpcli:
     image: wordpress:cli
     profiles: ["cli"]
-    user: "33:33"                  # igual que Apache
+    user: "33:33"                  # same as Apache user
     working_dir: /var/www/html
     depends_on:
       db:
@@ -122,7 +122,7 @@ services:
       - ./wp/wp-content/plugins:/var/www/html/wp-content/plugins
       - wp_cli_cache:/var/www/.wp-cli
 
-  # Composer on-demand (para tu plugin/tema)
+  # Composer on-demand (for your plugin/theme)
   composer:
     image: composer:2
     profiles: ["cli"]
@@ -132,7 +132,7 @@ services:
       - ./wp/wp-content/plugins:/app
       - ./wp/wp-content/themes:/app-themes
 
-  # Composer automático dentro del plugin creado por setup (opcional)
+  # Automatic Composer run inside the plugin created by setup (optional)
   composer-setup:
     image: composer:2
     user: "33:33"
