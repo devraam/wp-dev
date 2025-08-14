@@ -1,0 +1,11 @@
+# WordPress local
+wp/wp-content/uploads/
+wp-config.php
+
+# Composer (no subas vendor si el build lo genera)
+wp/wp-content/plugins/*/vendor/
+wp/wp-content/themes/*/vendor/
+
+# Entorno
+.env
+*.log

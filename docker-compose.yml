@@ -1,0 +1,169 @@
+services:
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-wordpress}
+      MYSQL_USER: ${MYSQL_USER:-wpuser}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme_pw}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      retries: 30
+
+  # Prepara carpetas del host (temas/plugins)
+  bootstrap:
+    image: wordpress:php8.2-apache
+    restart: "no"
+    volumes:
+      - ./:/project
+    entrypoint: ["bash", "-lc"]
+    command: |
+      set -eux
+      mkdir -p /project/wp/wp-content/themes /project/wp/wp-content/plugins
+      if [ -z "$(ls -A /project/wp/wp-content/themes 2>/dev/null || true)" ]; then
+        cp -r /usr/src/wordpress/wp-content/themes/* /project/wp/wp-content/themes/ || true
+      fi
+      : > /project/wp/wp-content/themes/.gitkeep
+      : > /project/wp/wp-content/plugins/.gitkeep
+
+  wordpress:
+    image: wordpress:php8.2-apache
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    ports:
+      - "${WORDPRESS_PORT:-8080}:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER:-wpuser}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD:-changeme_pw}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE:-wordpress}
+    volumes:
+      - wp_data:/var/www/html              # core y resto
+      - ./wp/wp-content/themes:/var/www/html/wp-content/themes
+      - ./wp/wp-content/plugins:/var/www/html/wp-content/plugins
+      - uploads_data:/var/www/html/wp-content/uploads
+
+  # Instala WP y crea plugin base
+  setup:
+    image: wordpress:cli
+    user: "0:0"   # root para poder chown a 33:33
+    depends_on:
+      db:
+        condition: service_healthy
+      wordpress:
+        condition: service_started
+    restart: "no"
+    working_dir: /var/www/html
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER:-wpuser}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD:-changeme_pw}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE:-wordpress}
+      WORDPRESS_URL: ${WORDPRESS_URL:-http://localhost:8080}
+      WORDPRESS_TITLE: ${WORDPRESS_TITLE:-WP Dev}
+      WORDPRESS_ADMIN_USER: ${WORDPRESS_ADMIN_USER:-admin}
+      WORDPRESS_ADMIN_PASSWORD: ${WORDPRESS_ADMIN_PASSWORD:-admin123}
+      WORDPRESS_ADMIN_EMAIL: ${WORDPRESS_ADMIN_EMAIL:-admin@example.com}
+      WP_CLI_ALLOW_ROOT: "1"
+      WP_CLI_CACHE_DIR: /var/www/.wp-cli/cache
+    volumes:
+      - wp_data:/var/www/html
+      - ./ops/setup.sh:/setup.sh:ro
+      - ./wp/wp-content/themes:/var/www/html/wp-content/themes
+      - ./wp/wp-content/plugins:/var/www/html/wp-content/plugins
+      - uploads_data:/var/www/html/wp-content/uploads
+      - wp_cli_cache:/var/www/.wp-cli
+    entrypoint: ["bash", "/setup.sh"]
+
+  # Prepara el volumen de caché de WP-CLI con permisos 33:33
+  wpcli-cache-init:
+    image: alpine:3
+    user: "0:0"
+    restart: "no"
+    volumes:
+      - wp_cli_cache:/target
+    entrypoint: ["sh","-lc"]
+    command: |
+      set -e
+      mkdir -p /target/cache
+      chown -R 33:33 /target
+
+  # WP-CLI on-demand
+  wpcli:
+    image: wordpress:cli
+    profiles: ["cli"]
+    user: "33:33"                  # igual que Apache
+    working_dir: /var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+      wordpress:
+        condition: service_started
+      wpcli-cache-init:
+        condition: service_completed_successfully
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER:-wpuser}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD:-changeme_pw}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE:-wordpress}
+      HOME: /var/www
+      WP_CLI_CACHE_DIR: /var/www/.wp-cli/cache
+      WP_CLI_ALLOW_ROOT: "1"
+    volumes:
+      - wp_data:/var/www/html
+      - ./wp/wp-content/themes:/var/www/html/wp-content/themes
+      - ./wp/wp-content/plugins:/var/www/html/wp-content/plugins
+      - wp_cli_cache:/var/www/.wp-cli
+
+  # Composer on-demand (para tu plugin/tema)
+  composer:
+    image: composer:2
+    profiles: ["cli"]
+    entrypoint: ["composer"]
+    working_dir: /app
+    volumes:
+      - ./wp/wp-content/plugins:/app
+      - ./wp/wp-content/themes:/app-themes
+
+  # Composer automático dentro del plugin creado por setup (opcional)
+  composer-setup:
+    image: composer:2
+    user: "33:33"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    restart: "no"
+    working_dir: /app
+    volumes:
+      - ./wp/wp-content/plugins:/app
+    entrypoint: ["bash", "-lc"]
+    command: |
+      set -e
+      if [ -d /app/mi-plugin ]; then
+        cd /app/mi-plugin
+        if [ ! -f composer.json ]; then
+          composer init --no-interaction \
+            --name="vendor/mi-plugin" \
+            --description="Plugin base mi-plugin" \
+            --type="wordpress-plugin" \
+            --license="GPL-2.0-or-later" \
+            --require="php:^8.1"
+        fi
+        composer install --no-interaction
+        echo "Composer listo en /app/mi-plugin"
+      else
+        echo "Aviso: /app/mi-plugin no existe; ¿falló el scaffolding? (revisa logs de 'setup')"
+      fi
+
+volumes:
+  db_data:
+  wp_data:
+  uploads_data:
+  wp_cli_cache:
