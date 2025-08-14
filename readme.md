@@ -24,9 +24,9 @@ From the project root:
 docker compose up -d
 docker compose logs setup
 docker compose logs composer-setup
+```
 
-
-When it finishes:
+## When it finishes:
 
 Admin: http://localhost:8080/wp-admin/
 User: admin
@@ -41,16 +41,18 @@ Note: --rm removes the temporary container after it finishes, but your changes p
 
 ## Check WP status/version
 
+```bash
 docker compose run --rm wpcli wp core is-installed --path=/var/www/html --url=http://localhost:8080
 docker compose run --rm wpcli wp plugin list --path=/var/www/html --url=http://localhost:8080
-
+```
 
 ## Use Composer inside a plugin
 
+```bash
 docker compose run --rm composer --version
 docker compose run --rm composer init --working-dir=/app/mi-plugin
 docker compose run --rm composer install --working-dir=/app/mi-plugin
-
+```
 
 ## One-off commands (run from the project folder)
 
@@ -58,38 +60,42 @@ docker compose run --rm composer install --working-dir=/app/mi-plugin
 docker compose run --rm wpcli wp core version --url=http://localhost:8080
 
 # List/activate plugins
+
+```bash
 docker compose run --rm wpcli wp plugin list --url=http://localhost:8080
 docker compose run --rm wpcli wp plugin install query-monitor --activate --url=http://localhost:8080
-
+```
 
 ## Install and activate plugins
-
+```bash
 docker compose run --rm wpcli wp plugin install <slug> --activate --url=http://localhost:8080
-
+```
 
 ## Scaffold a plugin
-
+```bash
 docker compose run --rm wpcli wp scaffold plugin mi-otro-plugin --url=http://localhost:8080
-
+```
 
 ## Use Composer in your plugin
-
+```bash
 docker compose run --rm composer require vendor/package -d /app/mi-plugin
-
+```
 ## Themes
-
+```bash
 docker compose run --rm wpcli wp theme list --url=http://localhost:8080
 docker compose run --rm wpcli wp theme activate twentytwentyfour --url=http://localhost:8080
-
+```
 
 ## Interactive session (optional)
 If you prefer to jump in and run several commands:
 
+```bash
 docker compose run --rm wpcli bash
 # inside the container:
 wp --info
 wp plugin list
 exit
+```
 
 ## Folder structure
 
@@ -117,33 +123,33 @@ Database: defaults to MySQL 8.0 with user wpuser / password changeme_pw and DB w
 
 Check MySQL health:
 
+```bash
 docker compose ps
 docker compose logs db
-
+```
 If something failed, restart:
-
-
+```bash
 docker compose down -v
 docker compose up -d
 docker compose logs -f setup
-
+```
 
 ## Error installing plugins (permissions on /wp-content/upgrade)
 
 setup.sh already creates uploads and upgrade as www-data. If you changed permissions manually, fix with:
-
+```bash
 docker compose exec wordpress bash -lc 'install -d -m 775 -o www-data -g www-data /var/www/html/wp-content/{uploads,upgrade} && chown -R www-data:www-data /var/www/html/wp-content'
-
+```
 
 ## Port 8080 in use
 
 Change WORDPRESS_PORT mapping in docker-compose.yml, e.g. - "8081:80", then bring it up again.
 
 ## Shut down & clean up
-
+```bash
 docker compose down
 # or to wipe data and volumes too:
 docker compose down -v
-
+```
 
 You’re set! This runs WordPress with WP-CLI and Composer integrated, and a base plugin (mi-plugin) scaffolded and ready for development.
