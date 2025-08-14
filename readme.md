@@ -29,7 +29,9 @@ docker compose logs composer-setup
 ## When it finishes:
 
 Admin: http://localhost:8080/wp-admin/
+
 User: admin
+
 Password: admin123
 
 On Windows PowerShell, the same commands work as-is.
@@ -57,7 +59,9 @@ docker compose run --rm composer install --working-dir=/app/mi-plugin
 ## One-off commands (run from the project folder)
 
 # WP version
+```bash
 docker compose run --rm wpcli wp core version --url=http://localhost:8080
+```
 
 # List/activate plugins
 
@@ -80,12 +84,12 @@ docker compose run --rm wpcli wp scaffold plugin mi-otro-plugin --url=http://loc
 ```bash
 docker compose run --rm composer require vendor/package -d /app/mi-plugin
 ```
+
 ## Themes
 ```bash
 docker compose run --rm wpcli wp theme list --url=http://localhost:8080
 docker compose run --rm wpcli wp theme activate twentytwentyfour --url=http://localhost:8080
 ```
-
 ## Interactive session (optional)
 If you prefer to jump in and run several commands:
 
@@ -96,7 +100,6 @@ wp --info
 wp plugin list
 exit
 ```
-
 ## Folder structure
 
 wp-dev/
@@ -117,7 +120,6 @@ WP-CLI permissions: the compose file creates a wp_cli_cache volume with proper p
 
 Database: defaults to MySQL 8.0 with user wpuser / password changeme_pw and DB wordpress (defined in docker-compose.yml).
 
-
 ## Troubleshooting
 ## Stuck on “waiting for DB…”
 
@@ -133,7 +135,6 @@ docker compose down -v
 docker compose up -d
 docker compose logs -f setup
 ```
-
 ## Error installing plugins (permissions on /wp-content/upgrade)
 
 setup.sh already creates uploads and upgrade as www-data. If you changed permissions manually, fix with:
